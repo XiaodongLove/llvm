@@ -79,7 +79,7 @@ class MachObjectWriter : public MCObjectWriter {
   struct MachSymbolData {
     const MCSymbol *Symbol;
     uint64_t StringIndex;
-    uint8_t SectionIndex;
+    uint64_t SectionIndex;
 
     // Support lexicographic sorting.
     bool operator<(const MachSymbolData &RHS) const;

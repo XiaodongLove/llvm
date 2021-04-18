@@ -49,6 +49,9 @@ public:
   MCAsmBackend &operator=(const MCAsmBackend &) = delete;
   virtual ~MCAsmBackend();
 
+  virtual void alignBranchesBegin(MCObjectStreamer &OS, const MCInst &Inst) {}
+  virtual void alignBranchesEnd(MCObjectStreamer &OS, const MCInst &Inst) {}
+
   /// lifetime management
   virtual void reset() {}
 

@@ -68,8 +68,12 @@ public:
   /// Return the location list at the given offset or nullptr.
   LocationList const *getLocationListAtOffset(uint64_t Offset) const;
 
+  /// Returns the parsed location lists.
+  const LocationLists &getLocationLists() const { return Locations; }
+
   Optional<LocationList> parseOneLocationList(DWARFDataExtractor Data,
-                                              uint32_t *Offset);
+                                              uint32_t *Offset,
+                                              uint64_t CUBaseAddress = 0);
 };
 
 class DWARFDebugLocDWO {

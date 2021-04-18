@@ -490,7 +490,7 @@ void format_object_base::home() {
 //===----------------------------------------------------------------------===//
 
 static int getFD(StringRef Filename, std::error_code &EC,
-                 sys::fs::OpenFlags Flags) {
+                 sys::fs::OpenFlags Flags, unsigned Mode = 0666) {
   // Handle "-" as stdout. Note that when we do this, we consider ourself
   // the owner of stdout and may set the "binary" flag globally based on Flags.
   if (Filename == "-") {
@@ -503,7 +503,7 @@ static int getFD(StringRef Filename, std::error_code &EC,
   }
 
   int FD;
-  EC = sys::fs::openFileForWrite(Filename, FD, Flags);
+  EC = sys::fs::openFileForWrite(Filename, FD, Flags, Mode);
   if (EC)
     return -1;
 
@@ -511,8 +511,8 @@ static int getFD(StringRef Filename, std::error_code &EC,
 }
 
 raw_fd_ostream::raw_fd_ostream(StringRef Filename, std::error_code &EC,
-                               sys::fs::OpenFlags Flags)
-    : raw_fd_ostream(getFD(Filename, EC, Flags), true) {}
+                               sys::fs::OpenFlags Flags, unsigned Mode)
+    : raw_fd_ostream(getFD(Filename, EC, Flags, Mode), true) {}
 
 /// FD is the file descriptor that this writes to.  If ShouldClose is true, this
 /// closes the file when the stream is destroyed.

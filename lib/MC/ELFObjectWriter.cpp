@@ -804,6 +804,7 @@ void ELFObjectWriter::computeSymbolTable(
       continue;
 
     if (Symbol.isTemporary() && Symbol.isUndefined()) {
+      errs() << Symbol.getName() << '\n';
       Ctx.reportError(SMLoc(), "Undefined temporary symbol");
       continue;
     }

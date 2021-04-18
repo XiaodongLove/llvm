@@ -297,7 +297,17 @@ public:
   /// missing. Instead, that symbol will be left out of the result map.
   virtual Expected<LookupFlagsResult> lookupFlags(const LookupSet &Symbols) = 0;
 
+  /// Specify if this resolver can return valid symbols with zero value.
+  virtual void setAllowsZeroSymbols(bool Value = true) {
+    AllowsZeroSymbols = Value;
+  }
+
+  /// Return true if the resolver can return a valid symbol with zero value.
+  virtual bool allowsZeroSymbols() { return AllowsZeroSymbols; }
+
 private:
+  bool AllowsZeroSymbols = false;
+
   virtual void anchor();
 };
 

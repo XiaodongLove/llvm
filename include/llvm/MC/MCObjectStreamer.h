@@ -121,6 +121,8 @@ public:
                             unsigned MaxBytesToEmit = 0) override;
   void EmitCodeAlignment(unsigned ByteAlignment,
                          unsigned MaxBytesToEmit = 0) override;
+  void EmitNeverAlignCodeAtEnd(unsigned ByteAlignment, int64_t Value = 0,
+                               unsigned ValueSize = 1) override;
   void emitValueToOffset(const MCExpr *Offset, unsigned char Value,
                          SMLoc Loc) override;
   void
@@ -133,6 +135,9 @@ public:
                              StringRef FileName) override;
   void EmitDwarfAdvanceLineAddr(int64_t LineDelta, const MCSymbol *LastLabel,
                                 const MCSymbol *Label,
+                                unsigned PointerSize);
+  void EmitDwarfAdvanceLineAddr(int64_t LineDelta, uint64_t Address,
+                                uint64_t AddressDelta,
                                 unsigned PointerSize);
   void EmitDwarfAdvanceFrameAddr(const MCSymbol *LastLabel,
                                  const MCSymbol *Label);

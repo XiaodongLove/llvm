@@ -19,6 +19,7 @@ if (X86_GEN_FOLD_TABLES)
 endif()
 
 add_public_tablegen_target(X86CommonTableGen)
+add_public_tablegen_target(X86GenInstrInfo)
 
 set(sources
   X86AsmPrinter.cpp

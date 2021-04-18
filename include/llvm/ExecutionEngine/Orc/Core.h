@@ -110,7 +110,17 @@ public:
   virtual SymbolNameSet lookup(std::shared_ptr<AsynchronousSymbolQuery> Query,
                                SymbolNameSet Symbols) = 0;
 
+  /// Specify if this resolver can return valid symbols with zero value.
+  virtual void setAllowsZeroSymbols(bool Value = true) {
+    AllowsZeroSymbols = Value;
+  }
+
+  /// Return true if the resolver can return a valid symbol with zero value.
+  virtual bool allowsZeroSymbols() { return AllowsZeroSymbols; }
+
 private:
+  bool AllowsZeroSymbols = false;
+
   virtual void anchor();
 };
 

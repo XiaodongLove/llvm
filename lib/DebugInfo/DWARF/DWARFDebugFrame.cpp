@@ -352,7 +352,8 @@ static void LLVM_ATTRIBUTE_NORETURN ReportError(uint32_t StartOffset,
   report_fatal_error(Str);
 }
 
-void DWARFDebugFrame::parse(DWARFDataExtractor Data) {
+void DWARFDebugFrame::parse(DWARFDataExtractor Data,
+                            RefHandlerType RefHandler) {
   uint32_t Offset = 0;
   DenseMap<uint32_t, CIE *> CIEs;
 
@@ -369,6 +370,9 @@ void DWARFDebugFrame::parse(DWARFDataExtractor Data) {
       // length.
       IsDWARF64 = true;
       Length = Data.getU64(&Offset);
+    } else if (Length == 0) {
+      // Skip empty entry.
+      continue;
     }
 
     // At this point, Offset points to the next field after Length.
@@ -399,7 +403,7 @@ void DWARFDebugFrame::parse(DWARFDataExtractor Data) {
 
       // Parse the augmentation data for EH CIEs
       StringRef AugmentationData("");
-      uint32_t FDEPointerEncoding = DW_EH_PE_omit;
+      uint32_t FDEPointerEncoding = DW_EH_PE_absptr;
       uint32_t LSDAPointerEncoding = DW_EH_PE_omit;
       Optional<uint64_t> Personality;
       Optional<uint32_t> PersonalityEncoding;
@@ -425,10 +429,15 @@ void DWARFDebugFrame::parse(DWARFDataExtractor Data) {
               Personality = Data.getEncodedPointer(
                   &Offset, *PersonalityEncoding,
                   EHFrameAddress ? EHFrameAddress + Offset : 0);
+              if (RefHandler)
+                RefHandler(*Personality, Offset, *PersonalityEncoding);
               break;
             }
             case 'R':
               FDEPointerEncoding = Data.getU8(&Offset);
+              break;
+            case 'S':
+              // Current frame is a signal trampoline.
               break;
             case 'z':
               if (i)
@@ -478,6 +487,8 @@ void DWARFDebugFrame::parse(DWARFDataExtractor Data) {
                 EHFrameAddress ? EHFrameAddress + Offset : 0)) {
           InitialLocation = *Val;
         }
+        if (RefHandler)
+          RefHandler(InitialLocation, Offset, Cie->getFDEPointerEncoding());
         if (auto Val = Data.getEncodedPointer(
                 &Offset, Cie->getFDEPointerEncoding(), 0)) {
           AddressRange = *Val;
@@ -496,6 +507,8 @@ void DWARFDebugFrame::parse(DWARFDataExtractor Data) {
             LSDAAddress = Data.getEncodedPointer(
                 &Offset, Cie->getLSDAPointerEncoding(),
                 EHFrameAddress ? Offset + EHFrameAddress : 0);
+            if (RefHandler)
+              RefHandler(*LSDAAddress, Offset, Cie->getLSDAPointerEncoding());
           }
 
           if (Offset != EndAugmentationOffset)
@@ -529,6 +542,13 @@ FrameEntry *DWARFDebugFrame::getEntryAtOffset(uint64_t Offset) const {
   if (It != Entries.end() && (*It)->getOffset() == Offset)
     return It->get();
   return nullptr;
+}
+
+void DWARFDebugFrame::for_each_FDE(FDEFunction F) const {
+  for (const auto &Entry : Entries) {
+    if (const auto *FDE = dyn_cast<dwarf::FDE>(Entry.get()))
+      F(FDE);
+  }
 }
 
 void DWARFDebugFrame::dump(raw_ostream &OS, const MCRegisterInfo *MRI,

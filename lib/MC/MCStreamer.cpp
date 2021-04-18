@@ -85,9 +85,13 @@ void MCStreamer::reset() {
   DwarfFrameInfos.clear();
   CurrentWinFrameInfo = nullptr;
   WinFrameInfos.clear();
-  SymbolOrdering.clear();
+  SymbolOrdering = 1;
   SectionStack.clear();
   SectionStack.push_back(std::pair<MCSectionSubPair, MCSectionSubPair>());
+}
+
+unsigned MCStreamer::GetSymbolOrder(const MCSymbol *Symbol) const {
+  return Symbol->getOrder();
 }
 
 raw_ostream &MCStreamer::GetCommentOS() {
@@ -127,6 +131,13 @@ void MCStreamer::EmitULEB128IntValue(uint64_t Value) {
   SmallString<128> Tmp;
   raw_svector_ostream OSE(Tmp);
   encodeULEB128(Value, OSE);
+  EmitBytes(OSE.str());
+}
+
+void MCStreamer::EmitPaddedULEB128IntValue(uint64_t Value, unsigned PadTo) {
+  SmallString<128> Tmp;
+  raw_svector_ostream OSE(Tmp);
+  encodeULEB128(Value, OSE, PadTo);
   EmitBytes(OSE.str());
 }
 
@@ -315,7 +326,7 @@ void MCStreamer::AssignFragment(MCSymbol *Symbol, MCFragment *Fragment) {
 
   // As we emit symbols into a section, track the order so that they can
   // be sorted upon later. Zero is reserved to mean 'unemitted'.
-  SymbolOrdering[Symbol] = 1 + SymbolOrdering.size();
+  Symbol->setOrder(SymbolOrdering);
 }
 
 void MCStreamer::EmitLabel(MCSymbol *Symbol, SMLoc Loc) {
@@ -884,6 +895,14 @@ void MCStreamer::visitUsedExpr(const MCExpr &Expr) {
   }
 }
 
+void MCStreamer::EmitCFIInstruction(const MCCFIInstruction &Inst) {
+  MCSymbol *Label = EmitCFILabel();
+  MCCFIInstruction Instruction = Inst;
+  Instruction.setLabel(Label);
+  MCDwarfFrameInfo *CurFrame = getCurrentDwarfFrameInfo();
+  CurFrame->Instructions.push_back(Instruction);
+}
+
 void MCStreamer::EmitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
                                  bool) {
   // Scan for values.
@@ -961,6 +980,8 @@ void MCStreamer::EmitValueToAlignment(unsigned ByteAlignment, int64_t Value,
                                       unsigned MaxBytesToEmit) {}
 void MCStreamer::EmitCodeAlignment(unsigned ByteAlignment,
                                    unsigned MaxBytesToEmit) {}
+void MCStreamer::EmitNeverAlignCodeAtEnd(unsigned ByteAlignment, int64_t Value,
+                                         unsigned ValueSize) {}
 void MCStreamer::emitValueToOffset(const MCExpr *Offset, unsigned char Value,
                                    SMLoc Loc) {}
 void MCStreamer::EmitBundleAlignMode(unsigned AlignPow2) {}

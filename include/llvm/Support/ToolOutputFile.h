@@ -46,7 +46,7 @@ public:
   /// This constructor's arguments are passed to raw_fd_ostream's
   /// constructor.
   ToolOutputFile(StringRef Filename, std::error_code &EC,
-                 sys::fs::OpenFlags Flags);
+                 sys::fs::OpenFlags Flags, unsigned Mode = 0666);
 
   ToolOutputFile(StringRef Filename, int FD);
 

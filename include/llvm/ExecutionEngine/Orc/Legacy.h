@@ -25,6 +25,10 @@ public:
   JITSymbolResolverAdapter(ExecutionSession &ES, SymbolResolver &R);
   Expected<LookupFlagsResult> lookupFlags(const LookupSet &Symbols) override;
   Expected<LookupResult> lookup(const LookupSet &Symbols) override;
+  bool allowsZeroSymbols() override { return R.allowsZeroSymbols(); }
+  void setAllowsZeroSymbols(bool Value) override {
+    R.setAllowsZeroSymbols(Value);
+  }
 
 private:
   ExecutionSession &ES;
@@ -70,11 +74,13 @@ Expected<SymbolNameSet> lookupFlagsWithLegacyFn(SymbolFlagsMap &SymbolFlags,
 template <typename FindSymbolFn>
 SymbolNameSet lookupWithLegacyFn(AsynchronousSymbolQuery &Query,
                                  const SymbolNameSet &Symbols,
-                                 FindSymbolFn FindSymbol) {
+                                 FindSymbolFn FindSymbol,
+                                 bool AllowZeroSymbols = false) {
   SymbolNameSet SymbolsNotFound;
 
   for (auto &S : Symbols) {
-    if (JITSymbol Sym = FindSymbol(*S)) {
+    JITSymbol Sym = FindSymbol(*S);
+    if (Sym || (AllowZeroSymbols && !Sym.getFlags().hasError())) {
       if (auto Addr = Sym.getAddress()) {
         Query.setDefinition(S, JITEvaluatedSymbol(*Addr, Sym.getFlags()));
         Query.notifySymbolFinalized();
@@ -116,7 +122,8 @@ public:
 
   SymbolNameSet lookup(std::shared_ptr<AsynchronousSymbolQuery> Query,
                        SymbolNameSet Symbols) final {
-    return lookupWithLegacyFn(*Query, Symbols, LegacyLookup);
+    return lookupWithLegacyFn(*Query, Symbols, LegacyLookup,
+                              this->allowsZeroSymbols());
   }
 
 private:

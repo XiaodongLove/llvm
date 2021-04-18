@@ -29,7 +29,8 @@ let mayLoad = 1, mayStore = 0, hasSideEffects = 1 in {
   def UD2B    : I<0xB9, RawFrm, (outs), (ins), "ud2b", []>, TB;
 }
 
-def HLT : I<0xF4, RawFrm, (outs), (ins), "hlt", [], IIC_HLT>;
+let isTerminator = 1 in
+  def HLT : I<0xF4, RawFrm, (outs), (ins), "hlt", [], IIC_HLT>;
 def RSM : I<0xAA, RawFrm, (outs), (ins), "rsm", [], IIC_RSM>, TB;
 
 // Interrupt and SysCall Instructions.
@@ -698,6 +699,19 @@ let Uses = [RAX, RBX, RCX, RDX], Defs = [RAX, RBX, RCX] in {
   def GETSEC : I<0x37, RawFrm, (outs), (ins), "getsec", [], IIC_SMX>, TB;
 } // Uses, Defs
 } // SchedRW
+
+//===----------------------------------------------------------------------===//
+// TS flag control instruction.
+let SchedRW = [WriteSystem] in {
+def CLTS : I<0x06, RawFrm, (outs), (ins), "clts", [], IIC_CLTS>, TB;
+}
+
+//===----------------------------------------------------------------------===//
+// IF (inside EFLAGS) management instructions.
+let SchedRW = [WriteSystem], Uses = [EFLAGS], Defs = [EFLAGS] in {
+def CLI : I<0xFA, RawFrm, (outs), (ins), "cli", [], IIC_CLI>;
+def STI : I<0xFB, RawFrm, (outs), (ins), "sti", [], IIC_STI>;
+}
 
 //===----------------------------------------------------------------------===//
 // RDPID Instruction

@@ -254,6 +254,9 @@ void MCFragment::destroy() {
     case FT_Align:
       delete cast<MCAlignFragment>(this);
       return;
+    case FT_NeverAlign:
+      delete cast<MCNeverAlignFragment>(this);
+      return;
     case FT_Data:
       delete cast<MCDataFragment>(this);
       return;
@@ -280,6 +283,9 @@ void MCFragment::destroy() {
       return;
     case FT_Padding:
       delete cast<MCPaddingFragment>(this);
+      return;
+    case FT_BoundaryAlign:
+      delete cast<MCBoundaryAlignFragment>(this);
       return;
     case FT_SymbolId:
       delete cast<MCSymbolIdFragment>(this);
@@ -316,6 +322,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
   OS << "<";
   switch (getKind()) {
   case MCFragment::FT_Align: OS << "MCAlignFragment"; break;
+  case MCFragment::FT_NeverAlign: OS << "MCNeverAlignFragment"; break;
   case MCFragment::FT_Data:  OS << "MCDataFragment"; break;
   case MCFragment::FT_CompactEncodedInst:
     OS << "MCCompactEncodedInstFragment"; break;
@@ -325,6 +332,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
   case MCFragment::FT_Dwarf: OS << "MCDwarfFragment"; break;
   case MCFragment::FT_DwarfFrame: OS << "MCDwarfCallFrameFragment"; break;
   case MCFragment::FT_LEB:   OS << "MCLEBFragment"; break;
+  case MCFragment::FT_BoundaryAlign: OS<<"MCBoundaryAlignFragment"; break;
   case MCFragment::FT_Padding: OS << "MCPaddingFragment"; break;
   case MCFragment::FT_SymbolId:    OS << "MCSymbolIdFragment"; break;
   case MCFragment::FT_CVInlineLines: OS << "MCCVInlineLineTableFragment"; break;
@@ -346,6 +354,15 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     OS << " Alignment:" << AF->getAlignment()
        << " Value:" << AF->getValue() << " ValueSize:" << AF->getValueSize()
        << " MaxBytesToEmit:" << AF->getMaxBytesToEmit() << ">";
+    break;
+  }
+  case MCFragment::FT_NeverAlign: {
+    const MCNeverAlignFragment *NAF = cast<MCNeverAlignFragment>(this);
+    if (NAF->hasEmitNops())
+      OS << " (emit nops)";
+    OS << "\n       ";
+    OS << " Alignment:" << NAF->getAlignment()
+      << " Value:" << NAF->getValue() << " ValueSize:" << NAF->getValueSize();
     break;
   }
   case MCFragment::FT_Data:  {
@@ -436,6 +453,19 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     OS << "\n       ";
     break;
   }
+  case MCFragment::FT_BoundaryAlign: {
+    const auto *BF = cast<MCBoundaryAlignFragment>(this);
+    if (BF->canEmitNops())
+      OS << " (can emit nops to align";
+    if (BF->isFused())
+      OS << " fused branch)";
+    else
+      OS << " unfused branch)";
+    OS << "\n       ";
+    OS << " BoundarySize:" << BF->getAlignment().value()
+       << " Size:" << BF->getSize();
+    break;
+  }
   case MCFragment::FT_SymbolId: {
     const MCSymbolIdFragment *F = cast<MCSymbolIdFragment>(this);
     OS << "\n       ";
@@ -480,7 +510,10 @@ LLVM_DUMP_METHOD void MCAssembler::dump() const{
     if (it != symbol_begin()) OS << ",\n           ";
     OS << "(";
     it->dump();
-    OS << ", Index:" << it->getIndex() << ", ";
+    if (it->hasIndex())
+      OS << ", Index:" << it->getIndex() << ", ";
+    else
+      OS << ", Order:" << it->getOrder() << ", ";
     OS << ")";
   }
   OS << "]>\n";

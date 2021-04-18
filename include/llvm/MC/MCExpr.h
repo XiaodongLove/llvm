@@ -123,6 +123,9 @@ public:
   /// expression.
   MCFragment *findAssociatedFragment() const;
 
+  /// Helper method that returns the Symbol of an MCSymbolRef Expression.
+  const MCSymbol &getSymbol() const;
+
   /// @}
 };
 

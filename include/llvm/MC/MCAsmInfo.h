@@ -225,6 +225,10 @@ protected:
   /// result of a alignment directive.  Defaults to 0
   unsigned TextAlignFillValue = 0;
 
+  /// If non-zero, this is used to fill the executable space with instructions
+  /// that will trap. Defaults to 0
+  unsigned TrapFillValue = 0;
+
   //===--- Global Variable Emission Directives --------------------------===//
 
   /// This is the directive used to declare a global entity. Defaults to
@@ -504,6 +508,7 @@ public:
   const char *getAscizDirective() const { return AscizDirective; }
   bool getAlignmentIsInBytes() const { return AlignmentIsInBytes; }
   unsigned getTextAlignFillValue() const { return TextAlignFillValue; }
+  unsigned getTrapFillValue() const { return TrapFillValue; }
   const char *getGlobalDirective() const { return GlobalDirective; }
 
   bool doesSetDirectiveSuppressReloc() const {

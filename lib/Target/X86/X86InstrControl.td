@@ -200,7 +200,7 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1 in {
 }
 
 // Loop instructions
-let SchedRW = [WriteJump] in {
+let isBranch = 1, isTerminator = 1, SchedRW = [WriteJump] in {
 def LOOP   : Ii8PCRel<0xE2, RawFrm, (outs), (ins brtarget8:$dst), "loop\t$dst", [], IIC_LOOP>;
 def LOOPE  : Ii8PCRel<0xE1, RawFrm, (outs), (ins brtarget8:$dst), "loope\t$dst", [], IIC_LOOPE>;
 def LOOPNE : Ii8PCRel<0xE0, RawFrm, (outs), (ins brtarget8:$dst), "loopne\t$dst", [], IIC_LOOPNE>;
@@ -299,12 +299,13 @@ let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1,
                            (ins i32imm_pcrel:$dst),
                            "jmp\t$dst",
                            [], IIC_JMP_REL>;
-
-  def TAILJMPr : I<0xFF, MRM4r, (outs), (ins ptr_rc_tailcall:$dst),
-                   "", [], IIC_JMP_REG>;  // FIXME: Remove encoding when JIT is dead.
-  let mayLoad = 1 in
-  def TAILJMPm : I<0xFF, MRM4m, (outs), (ins i32mem_TC:$dst),
-                   "jmp{l}\t{*}$dst", [], IIC_JMP_MEM>;
+  let isIndirectBranch = 1 in {
+    def TAILJMPr : I<0xFF, MRM4r, (outs), (ins ptr_rc_tailcall:$dst),
+                     "jmp{l}\t{*}$dst", [], IIC_JMP_REG>;  // FIXME: Remove encoding when JIT is dead.
+    let mayLoad = 1 in
+    def TAILJMPm : I<0xFF, MRM4m, (outs), (ins i32mem_TC:$dst),
+                     "jmp{l}\t{*}$dst", [], IIC_JMP_MEM>;
+  }
 }
 
 // Conditional tail calls are similar to the above, but they are branches

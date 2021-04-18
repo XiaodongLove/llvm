@@ -80,6 +80,12 @@ public:
     BaseLayer.mapSectionAddress(K, LocalAddress, TargetAddr);
   }
 
+  /// @brief Map section addresses for the objects associated with the handle H.
+  void mapSectionAddress(VModuleKey K, unsigned SectionID,
+                         JITTargetAddress TargetAddr) {
+    BaseLayer.mapSectionAddress(K, SectionID, TargetAddr);
+  }
+
   /// @brief Access the transform functor directly.
   TransformFtor &getTransform() { return Transform; }
 

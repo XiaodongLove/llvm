@@ -28,12 +28,15 @@ class raw_ostream;
 class DWARFAbbreviationDeclaration {
 public:
   struct AttributeSpec {
-    AttributeSpec(dwarf::Attribute A, dwarf::Form F, int64_t Value)
-        : Attr(A), Form(F), Value(Value) {
+    AttributeSpec(dwarf::Attribute A, dwarf::Form F, int64_t Value,
+                  uint32_t AttrOffset = -1U, uint32_t FormOffset = -1U)
+        : Attr(A), Form(F), AttrOffset(AttrOffset), FormOffset(FormOffset),
+          Value(Value) {
       assert(isImplicitConst());
     }
-    AttributeSpec(dwarf::Attribute A, dwarf::Form F, Optional<uint8_t> ByteSize)
-        : Attr(A), Form(F) {
+    AttributeSpec(dwarf::Attribute A, dwarf::Form F, Optional<uint8_t> ByteSize,
+                  uint32_t AttrOffset = -1U, uint32_t FormOffset = -1U)
+        : Attr(A), Form(F), AttrOffset(AttrOffset), FormOffset(FormOffset) {
       assert(!isImplicitConst());
       this->ByteSize.HasByteSize = ByteSize.hasValue();
       if (this->ByteSize.HasByteSize)
@@ -42,6 +45,8 @@ public:
 
     dwarf::Attribute Attr;
     dwarf::Form Form;
+    uint32_t AttrOffset;
+    uint32_t FormOffset;
 
   private:
     /// The following field is used for ByteSize for non-implicit_const
@@ -112,6 +117,8 @@ public:
     return AttributeSpecs[idx].Attr;
   }
 
+  const AttributeSpec *findAttribute(dwarf::Attribute Attr) const;
+
   /// Get the index of the specified attribute.
   ///
   /// Searches the this abbreviation declaration for the index of the specified
@@ -133,7 +140,8 @@ public:
   /// \returns Optional DWARF form value if the attribute was extracted.
   Optional<DWARFFormValue> getAttributeValue(const uint32_t DIEOffset,
                                              const dwarf::Attribute Attr,
-                                             const DWARFUnit &U) const;
+                                             const DWARFUnit &U,
+                                             uint32_t *OffsetPtr = 0) const;
 
   bool extract(DataExtractor Data, uint32_t* OffsetPtr);
   void dump(raw_ostream &OS) const;

@@ -225,6 +225,10 @@ public:
   /// Get a pointer to the parsed DebugLoc object.
   const DWARFDebugLoc *getDebugLoc();
 
+  /// Extract one location list corresponding in \p Offset
+  Optional<DWARFDebugLoc::LocationList>
+  getOneDebugLocList(uint32_t *Offset, uint64_t CUBaseAddress = 0);
+
   /// Get a pointer to the parsed dwo abbreviations object.
   const DWARFDebugAbbrev *getDebugAbbrevDWO();
 
@@ -280,6 +284,10 @@ public:
   /// given address where applicable.
   DIEsForAddress getDIEsForAddress(uint64_t Address);
 
+  /// Get offset to an attribute value within a compile unit
+  /// or 0 if the attribute was not found.
+  uint32_t getAttrFieldOffsetForUnit(DWARFUnit *U, dwarf::Attribute Attr) const;
+
   DILineInfo getLineInfoForAddress(uint64_t Address,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) override;
   DILineInfoTable getLineInfoForAddressRange(uint64_t Address, uint64_t Size,
@@ -302,7 +310,7 @@ public:
   static std::unique_ptr<DWARFContext>
   create(const object::ObjectFile &Obj, const LoadedObjectInfo *L = nullptr,
          function_ref<ErrorPolicy(Error)> HandleError = defaultErrorHandler,
-         std::string DWPName = "");
+         std::string DWPName = "", bool UsesRelocs = true);
 
   static std::unique_ptr<DWARFContext>
   create(const StringMap<std::unique_ptr<MemoryBuffer>> &Sections,
@@ -313,7 +321,6 @@ public:
   /// have initialized the relevant target descriptions.
   Error loadRegisterInfo(const object::ObjectFile &Obj);
 
-private:
   /// Return the compile unit that includes an offset (relative to .debug_info).
   DWARFCompileUnit *getCompileUnitForOffset(uint32_t Offset);
 

@@ -159,7 +159,7 @@ template <> struct isPodLike<MCOperand> { static const bool value = true; };
 class MCInst {
   unsigned Opcode = 0;
   SMLoc Loc;
-  SmallVector<MCOperand, 8> Operands;
+  SmallVector<MCOperand, 2> Operands;
   // These flags could be used to pass some info from one target subcomponent
   // to another, for example, from disassembler to asm printer. The values of
   // the flags have any sense on target level only (e.g. prefixes on x86).
@@ -187,7 +187,7 @@ public:
   using const_iterator = SmallVectorImpl<MCOperand>::const_iterator;
 
   void clear() { Operands.clear(); }
-  void erase(iterator I) { Operands.erase(I); }
+  iterator erase(iterator I) { return Operands.erase(I); }
   size_t size() const { return Operands.size(); }
   iterator begin() { return Operands.begin(); }
   const_iterator begin() const { return Operands.begin(); }

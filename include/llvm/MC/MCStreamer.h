@@ -199,7 +199,7 @@ class MCStreamer {
 
   /// \brief Tracks an index to represent the order a symbol was emitted in.
   /// Zero means we did not emit that symbol.
-  DenseMap<const MCSymbol *, unsigned> SymbolOrdering;
+  unsigned SymbolOrdering = 1;
 
   /// \brief This is stack of current and previous section values saved by
   /// PushSection.
@@ -338,9 +338,7 @@ public:
 
   /// \brief Returns an index to represent the order a symbol was emitted in.
   /// (zero if we did not emit that symbol)
-  unsigned GetSymbolOrder(const MCSymbol *Sym) const {
-    return SymbolOrdering.lookup(Sym);
-  }
+  unsigned GetSymbolOrder(const MCSymbol *Sym) const;
 
   /// \brief Update streamer for a new active section.
   ///
@@ -608,6 +606,10 @@ public:
 
   virtual void EmitSLEB128Value(const MCExpr *Value);
 
+  /// \brief Like EmitULEB128Value but pads the output to specific number of
+  /// bytes.
+  void EmitPaddedULEB128IntValue(uint64_t Value, unsigned PadTo);
+
   /// \brief Special case of EmitULEB128Value that avoids the client having to
   /// pass in a MCExpr for constant integers.
   void EmitULEB128IntValue(uint64_t Value);
@@ -725,6 +727,12 @@ public:
   /// emitted.
   virtual void EmitCodeAlignment(unsigned ByteAlignment,
                                  unsigned MaxBytesToEmit = 0);
+
+  /// \brief If the end of the following fragment ever gets aligned to
+  /// \p ByteAlignment, emit a single nop or \t Value to break this alignment.
+  virtual void EmitNeverAlignCodeAtEnd(unsigned ByteAlignment,
+                                       int64_t Value = 0,
+                                       unsigned ValueSize = 1);
 
   /// \brief Emit some number of copies of \p Value until the byte offset \p
   /// Offset is reached.
@@ -903,6 +911,8 @@ public:
   MCSection *getAssociatedXDataSection(const MCSection *TextSec);
 
   virtual void EmitSyntaxDirective();
+
+  virtual void EmitCFIInstruction(const MCCFIInstruction &Inst);
 
   /// \brief Emit a .reloc directive.
   /// Returns true if the relocation could not be emitted because Name is not

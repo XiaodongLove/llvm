@@ -120,10 +120,15 @@ protected:
 
   /// The Flags field is used by object file implementations to store
   /// additional per symbol information which is not easily classified.
-  enum : unsigned { NumFlagsBits = 16 };
+  enum : unsigned { NumFlagsBits = 15 };
   mutable uint32_t Flags : NumFlagsBits;
 
-  /// Index field, for use by the object file implementation.
+  /// Indicates if the next field is used for Index or Order.
+  mutable bool IsIndex : 1;
+
+  /// Index field for use by the object file implementation. It is also used to
+  /// represent order of the symbol. The semantics of the current value is
+  /// indicated by IsIndex field.
   mutable uint32_t Index = 0;
 
   union {
@@ -154,7 +159,7 @@ protected:
       : IsTemporary(isTemporary), IsRedefinable(false), IsUsed(false),
         IsRegistered(false), IsExternal(false), IsPrivateExtern(false),
         Kind(Kind), IsUsedInReloc(false), SymbolContents(SymContentsUnset),
-        CommonAlignLog2(0), Flags(0) {
+        CommonAlignLog2(0), Flags(0), IsIndex{false} {
     Offset = 0;
     FragmentAndHasName.setInt(!!Name);
     if (Name)
@@ -308,11 +313,27 @@ public:
 
   /// Get the (implementation defined) index.
   uint32_t getIndex() const {
+    assert(IsIndex && "Index unavailable");
     return Index;
   }
 
   /// Set the (implementation defined) index.
   void setIndex(uint32_t Value) const {
+    assert((IsIndex = true, true) && "assertion-specific code");
+    Index = Value;
+  }
+
+  bool hasIndex() const { return IsIndex; }
+
+  /// Get the (implementation defined) order.
+  uint32_t getOrder() const {
+    assert(!IsIndex && "Order unavailable");
+    return Index;
+  }
+
+  /// Set the (implementation defined) order.
+  void setOrder(uint32_t Value) const {
+    assert((IsIndex = false, true) && "assertion-specific code");
     Index = Value;
   }
 

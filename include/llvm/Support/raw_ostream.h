@@ -393,7 +393,7 @@ public:
   /// STDOUT_FILENO instead of opening a file. This will not close the stdout
   /// descriptor.
   raw_fd_ostream(StringRef Filename, std::error_code &EC,
-                 sys::fs::OpenFlags Flags);
+                 sys::fs::OpenFlags Flags, unsigned Mode = 0666);
 
   /// FD is the file descriptor that this writes to.  If ShouldClose is true,
   /// this closes the file when the stream is destroyed. If FD is for stdout or

@@ -188,6 +188,8 @@ private:
 
   bool relaxInstruction(MCAsmLayout &Layout, MCRelaxableFragment &IF);
 
+  bool relaxBoundaryAlign(MCAsmLayout &Layout, MCBoundaryAlignFragment &BF);
+
   bool relaxPaddingFragment(MCAsmLayout &Layout, MCPaddingFragment &PF);
 
   bool relaxLEB(MCAsmLayout &Layout, MCLEBFragment &IF);

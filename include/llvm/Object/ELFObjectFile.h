@@ -254,6 +254,7 @@ protected:
   bool isSectionData(DataRefImpl Sec) const override;
   bool isSectionBSS(DataRefImpl Sec) const override;
   bool isSectionVirtual(DataRefImpl Sec) const override;
+  bool isSectionReadOnly(DataRefImpl Sec) const override;
   relocation_iterator section_rel_begin(DataRefImpl Sec) const override;
   relocation_iterator section_rel_end(DataRefImpl Sec) const override;
   section_iterator getRelocatedSection(DataRefImpl Sec) const override;
@@ -717,6 +718,14 @@ bool ELFObjectFile<ELFT>::isSectionVirtual(DataRefImpl Sec) const {
 }
 
 template <class ELFT>
+bool ELFObjectFile<ELFT>::isSectionReadOnly(DataRefImpl Sec) const {
+  const Elf_Shdr *EShdr = getSection(Sec);
+  return EShdr->sh_flags & ELF::SHF_ALLOC &&
+         !(EShdr->sh_flags & ELF::SHF_WRITE) &&
+         EShdr->sh_type == ELF::SHT_PROGBITS;
+}
+
+template <class ELFT>
 relocation_iterator
 ELFObjectFile<ELFT>::section_rel_begin(DataRefImpl Sec) const {
   DataRefImpl RelData;
@@ -751,9 +760,6 @@ ELFObjectFile<ELFT>::section_rel_end(DataRefImpl Sec) const {
 template <class ELFT>
 section_iterator
 ELFObjectFile<ELFT>::getRelocatedSection(DataRefImpl Sec) const {
-  if (EF.getHeader()->e_type != ELF::ET_REL)
-    return section_end();
-
   const Elf_Shdr *EShdr = getSection(Sec);
   uintX_t Type = EShdr->sh_type;
   if (Type != ELF::SHT_REL && Type != ELF::SHT_RELA)
@@ -762,6 +768,9 @@ ELFObjectFile<ELFT>::getRelocatedSection(DataRefImpl Sec) const {
   auto R = EF.getSection(EShdr->sh_info);
   if (!R)
     report_fatal_error(errorToErrorCode(R.takeError()).message());
+  if (EF.getHeader()->e_type != ELF::ET_REL &&
+      !((*R)->sh_flags & ELF::SHF_ALLOC))
+    return section_end();
   return section_iterator(SectionRef(toDRI(*R), this));
 }
 
@@ -792,8 +801,6 @@ ELFObjectFile<ELFT>::getRelocationSymbol(DataRefImpl Rel) const {
 
 template <class ELFT>
 uint64_t ELFObjectFile<ELFT>::getRelocationOffset(DataRefImpl Rel) const {
-  assert(EF.getHeader()->e_type == ELF::ET_REL &&
-         "Only relocatable object files have relocation offsets");
   const Elf_Shdr *sec = getRelSection(Rel);
   if (sec->sh_type == ELF::SHT_REL)
     return getRel(Rel)->r_offset;

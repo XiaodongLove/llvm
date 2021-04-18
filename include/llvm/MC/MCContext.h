@@ -506,6 +506,10 @@ namespace llvm {
       return MCDwarfLineTablesCUMap;
     }
 
+    std::map<unsigned, MCDwarfLineTable> &getMCDwarfLineTables() {
+      return MCDwarfLineTablesCUMap;
+    }
+
     MCDwarfLineTable &getMCDwarfLineTable(unsigned CUID) {
       return MCDwarfLineTablesCUMap[CUID];
     }
@@ -552,13 +556,14 @@ namespace llvm {
     /// instruction will be created.
     void setCurrentDwarfLoc(unsigned FileNum, unsigned Line, unsigned Column,
                             unsigned Flags, unsigned Isa,
-                            unsigned Discriminator) {
+                            unsigned Discriminator, uint64_t Addr = -1ULL) {
       CurrentDwarfLoc.setFileNum(FileNum);
       CurrentDwarfLoc.setLine(Line);
       CurrentDwarfLoc.setColumn(Column);
       CurrentDwarfLoc.setFlags(Flags);
       CurrentDwarfLoc.setIsa(Isa);
       CurrentDwarfLoc.setDiscriminator(Discriminator);
+      CurrentDwarfLoc.setAbsoluteAddr(Addr);
       DwarfLocSeen = true;
     }
 

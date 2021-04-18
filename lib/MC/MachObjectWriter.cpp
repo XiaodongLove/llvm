@@ -523,12 +523,11 @@ void MachObjectWriter::computeSymbolTable(
     std::vector<MachSymbolData> &ExternalSymbolData,
     std::vector<MachSymbolData> &UndefinedSymbolData) {
   // Build section lookup table.
-  DenseMap<const MCSection*, uint8_t> SectionIndexMap;
+  DenseMap<const MCSection*, uint64_t> SectionIndexMap;
   unsigned Index = 1;
   for (MCAssembler::iterator it = Asm.begin(),
          ie = Asm.end(); it != ie; ++it, ++Index)
     SectionIndexMap[&*it] = Index;
-  assert(Index <= 256 && "Too many sections!");
 
   // Build the string table.
   for (const MCSymbol &Symbol : Asm.symbols()) {
@@ -946,7 +945,7 @@ void MachObjectWriter::writeObject(MCAssembler &Asm,
     const DataRegionData *Data = &(*it);
     uint64_t Start = getSymbolAddress(*Data->Start, Layout);
     uint64_t End;
-    if (Data->End) 
+    if (Data->End)
       End = getSymbolAddress(*Data->End, Layout);
     else
       report_fatal_error("Data region not terminated");

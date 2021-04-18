@@ -247,6 +247,8 @@ MCDisassembler::DecodeStatus X86GenericDisassembler::getInstruction(
                  // It should not be 'pause' f3 90
                  InternalInstr.opcode != 0x90)
           Flags |= X86::IP_HAS_REPEAT;
+        if (InternalInstr.hasLockPrefix)
+          Flags |= X86::IP_HAS_LOCK;
       }
       Instr.setFlags(Flags);
     }
@@ -265,13 +267,10 @@ MCDisassembler::DecodeStatus X86GenericDisassembler::getInstruction(
 /// @param reg        - The Reg to append.
 static void translateRegister(MCInst &mcInst, Reg reg) {
 #define ENTRY(x) X86::x,
-  uint8_t llvmRegnums[] = {
-    ALL_REGS
-    0
-  };
+  static constexpr MCPhysReg llvmRegnums[] = {ALL_REGS};
 #undef ENTRY
 
-  uint8_t llvmRegnum = llvmRegnums[reg];
+  MCPhysReg llvmRegnum = llvmRegnums[reg];
   mcInst.addOperand(MCOperand::createReg(llvmRegnum));
 }
 

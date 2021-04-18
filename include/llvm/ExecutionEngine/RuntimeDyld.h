@@ -112,6 +112,14 @@ public:
                                          StringRef SectionName,
                                          bool IsReadOnly) = 0;
 
+    /// Notify that a comment/note section exists and where it's located
+    /// in case the user needs to look up extra information about the
+    /// code, e.g. debugging information.
+    virtual uint8_t *recordNoteSection(const uint8_t *Data, uintptr_t Size,
+                                       unsigned Alignment,
+                                       unsigned SectionID,
+                                       StringRef SectionName) { return nullptr;}
+
     /// Inform the memory manager about the total amount of memory required to
     /// allocate all sections to be loaded:
     /// \p CodeSize - the total size of all code sections
@@ -128,6 +136,11 @@ public:
 
     /// Override to return true to enable the reserveAllocationSpace callback.
     virtual bool needsToReserveAllocationSpace() { return false; }
+
+    /// Override to return false to tell LLVM no stub space will be needed.
+    /// This requires some guarantees depending on architecuture, but when
+    /// you know what you are doing it saves allocated space.
+    virtual bool allowStubAllocation() const { return true; }
 
     /// Register the EH frames with the runtime so that c++ exceptions work.
     ///
@@ -204,6 +217,12 @@ public:
   /// to the address in the target process as the running code will see it.
   /// This is the address which will be used for relocation resolution.
   void mapSectionAddress(const void *LocalAddress, uint64_t TargetAddress);
+
+  /// Map a section to its target address space value.
+  /// Map a JIT section with a given ID to the address in the target process as
+  /// the running code will see it. This is the address which will be used for
+  /// relocation resolution.
+  void mapSectionAddress(unsigned SectionID, uint64_t TargetAddress);
 
   /// Register any EH frame sections that have been loaded but not previously
   /// registered with the memory manager.  Note, RuntimeDyld is responsible

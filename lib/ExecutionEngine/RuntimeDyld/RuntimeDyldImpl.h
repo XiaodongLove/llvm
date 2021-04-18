@@ -540,6 +540,8 @@ public:
 
   void mapSectionAddress(const void *LocalAddress, uint64_t TargetAddress);
 
+  void mapSectionAddress(unsigned SectionID, uint64_t TargetAddress);
+
   // Is the linker in an error state?
   bool hasError() { return HasError; }
 

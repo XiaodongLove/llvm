@@ -17,6 +17,7 @@
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SMLoc.h"
 #include <cstdint>
@@ -34,6 +35,7 @@ class MCFragment : public ilist_node_with_parent<MCFragment, MCSection> {
 public:
   enum FragmentType : uint8_t {
     FT_Align,
+    FT_NeverAlign,
     FT_Data,
     FT_CompactEncodedInst,
     FT_Fill,
@@ -42,6 +44,7 @@ public:
     FT_Dwarf,
     FT_DwarfFrame,
     FT_LEB,
+    FT_BoundaryAlign,
     FT_Padding,
     FT_SymbolId,
     FT_CVInlineLines,
@@ -322,6 +325,46 @@ public:
 
   static bool classof(const MCFragment *F) {
     return F->getKind() == MCFragment::FT_Align;
+  }
+};
+
+class MCNeverAlignFragment : public MCFragment {
+  /// Alignment - The alignment the end of the next fragment should avoid
+  unsigned Alignment;
+
+  /// EmitNops - Flag to indicate that (optimal) NOPs should be emitted instead
+  /// of using the provided value. The exact interpretation of this flag is
+  /// target dependent.
+  bool EmitNops : 1;
+
+  /// Value - Value to use for filling padding bytes.
+  int64_t Value;
+
+  /// ValueSize - The size of the integer (in bytes) of \p Value.
+  unsigned ValueSize;
+
+  public:
+  MCNeverAlignFragment(unsigned Alignment,
+      int64_t Value, unsigned ValueSize, MCSection *Sec = nullptr)
+    : MCFragment(FT_NeverAlign, false, 0, Sec), Alignment(Alignment),
+    EmitNops(false), Value(Value), ValueSize(ValueSize) {}
+
+  /// \name Accessors
+  /// @{
+
+  unsigned getAlignment() const { return Alignment; }
+
+  int64_t getValue() const { return Value; }
+
+  unsigned getValueSize() const { return ValueSize; }
+
+  bool hasEmitNops() const { return EmitNops; }
+  void setEmitNops(bool Value) { EmitNops = Value; }
+
+  /// @}
+
+  static bool classof(const MCFragment *F) {
+    return F->getKind() == MCFragment::FT_NeverAlign;
   }
 };
 
@@ -661,6 +704,49 @@ public:
   }
 };
 
+class MCBoundaryAlignFragment : public MCFragment {
+private:
+  /// The size of the MCBoundaryAlignFragment.
+  /// Note: The size is lazily set during relaxation, and is not meaningful
+  /// before that.
+  uint64_t Size = 0;
+  /// The alignment requirement of the branch to be aligned.
+  Align AlignBoundary;
+  /// Flag to indicate whether the branch is fused.
+  bool Fused : 1;
+  /// Flag to indicate whether NOPs should be emitted.
+  bool EmitNops : 1;
+
+public:
+  MCBoundaryAlignFragment(Align AlignBoundary, bool Fused = false,
+                          bool EmitNops = false, MCSection *Sec = nullptr)
+      : MCFragment(FT_BoundaryAlign, false, 0, Sec),
+        AlignBoundary(AlignBoundary), Fused(Fused), EmitNops(EmitNops) {}
+
+  /// \name Accessors
+  /// @{
+
+  Align getAlignment() const { return AlignBoundary; }
+
+  uint64_t getSize() const { return Size; }
+
+  bool canEmitNops() const { return EmitNops; }
+
+  bool isFused() const { return Fused; }
+
+  void setFused(bool Value) { Fused = Value; }
+
+  void setEmitNops(bool Value) { EmitNops = Value; }
+
+  void setSize(uint64_t Value) { Size = Value; }
+
+  /// @}
+  //
+
+  static bool classof(const MCFragment *F) {
+    return F->getKind() == MCFragment::FT_BoundaryAlign;
+  }
+};
 } // end namespace llvm
 
 #endif // LLVM_MC_MCFRAGMENT_H

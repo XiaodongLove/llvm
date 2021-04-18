@@ -127,6 +127,18 @@ public:
            getHeader()->getDataEncoding() == ELF::ELFDATA2LSB;
   }
 
+  Expected<const Elf_Dyn *> dynamic_table_begin(const Elf_Phdr *Phdr) const;
+  Expected<const Elf_Dyn *> dynamic_table_end(const Elf_Phdr *Phdr) const;
+  Expected<Elf_Dyn_Range> dynamic_table(const Elf_Phdr *Phdr) const {
+    Expected<const Elf_Dyn *> Begin = dynamic_table_begin(Phdr);
+    if (!Begin)
+      return Begin.takeError();
+    Expected<const Elf_Dyn *> End = dynamic_table_end(Phdr);
+    if (!End)
+      return End.takeError();
+    return makeArrayRef(Begin.get(), End.get());
+  }
+
   Expected<Elf_Shdr_Range> sections() const;
 
   Expected<Elf_Sym_Range> symbols(const Elf_Shdr *Sec) const {
@@ -394,6 +406,34 @@ void ELFFile<ELFT>::getRelocationTypeName(uint32_t Type,
     Result.append(1, '/');
     Result.append(Name.begin(), Name.end());
   }
+}
+
+template <class ELFT>
+Expected<const typename ELFFile<ELFT>::Elf_Dyn *>
+ELFFile<ELFT>::dynamic_table_begin(const Elf_Phdr *Phdr) const {
+  if (!Phdr)
+    return nullptr;
+  assert(Phdr->p_type == ELF::PT_DYNAMIC && "Got the wrong program header");
+  uintX_t Offset = Phdr->p_offset;
+  if (Offset > Buf.size())
+    return make_error<GenericBinaryError>("Could not read dynamic table");
+  return reinterpret_cast<const Elf_Dyn *>(base() + Offset);
+}
+
+template <class ELFT>
+Expected<const typename ELFFile<ELFT>::Elf_Dyn *>
+ELFFile<ELFT>::dynamic_table_end(const Elf_Phdr *Phdr) const {
+  if (!Phdr)
+    return nullptr;
+  assert(Phdr->p_type == ELF::PT_DYNAMIC && "Got the wrong program header");
+  uintX_t Size = Phdr->p_filesz;
+  if (Size % sizeof(Elf_Dyn))
+    return make_error<GenericBinaryError>("Invalid dynamic table size");
+  // FIKME: Check for overflow?
+  uintX_t End = Phdr->p_offset + Size;
+  if (End > Buf.size())
+    return make_error<GenericBinaryError>("Could not read dynamic table");
+  return reinterpret_cast<const Elf_Dyn *>(base() + End);
 }
 
 template <class ELFT>

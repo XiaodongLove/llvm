@@ -110,6 +110,7 @@ public:
   bool isVirtual() const;
   bool isBitcode() const;
   bool isStripped() const;
+  bool isReadOnly() const;
 
   bool containsSymbol(SymbolRef S) const;
 
@@ -238,6 +239,7 @@ protected:
   virtual bool isSectionVirtual(DataRefImpl Sec) const = 0;
   virtual bool isSectionBitcode(DataRefImpl Sec) const;
   virtual bool isSectionStripped(DataRefImpl Sec) const;
+  virtual bool isSectionReadOnly(DataRefImpl Sec) const = 0;
   virtual relocation_iterator section_rel_begin(DataRefImpl Sec) const = 0;
   virtual relocation_iterator section_rel_end(DataRefImpl Sec) const = 0;
   virtual section_iterator getRelocatedSection(DataRefImpl Sec) const;
@@ -440,6 +442,10 @@ inline bool SectionRef::isBitcode() const {
 
 inline bool SectionRef::isStripped() const {
   return OwningObject->isSectionStripped(SectionPimpl);
+}
+
+inline bool SectionRef::isReadOnly() const {
+  return OwningObject->isSectionReadOnly(SectionPimpl);
 }
 
 inline relocation_iterator SectionRef::relocation_begin() const {

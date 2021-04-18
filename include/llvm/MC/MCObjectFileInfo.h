@@ -65,6 +65,9 @@ protected:
   /// constants.
   MCSection *ReadOnlySection;
 
+  /// Same as the above but for infrequently used data.
+  MCSection *ReadOnlyColdSection;
+
   /// If exception handling is supported by the target, this is the section the
   /// Language Specific Data Area information is emitted to.
   MCSection *LSDASection;
@@ -230,6 +233,7 @@ public:
   MCSection *getDataSection() const { return DataSection; }
   MCSection *getBSSSection() const { return BSSSection; }
   MCSection *getReadOnlySection() const { return ReadOnlySection; }
+  MCSection *getReadOnlyColdSection() const { return ReadOnlyColdSection; }
   MCSection *getLSDASection() const { return LSDASection; }
   MCSection *getCompactUnwindSection() const { return CompactUnwindSection; }
   MCSection *getDwarfAbbrevSection() const { return DwarfAbbrevSection; }

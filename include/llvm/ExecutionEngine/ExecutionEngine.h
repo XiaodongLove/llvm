@@ -251,6 +251,16 @@ public:
                      "EE!");
   }
 
+  /// mapSectionAddress - map a section to its target address space value.
+  /// Map a JIT section with a given ID to the address in the target process
+  /// as the running code will see it. This is the address which will be used
+  /// for relocation resolution.
+  virtual void mapSectionAddress(unsigned SectionID,
+                                 uint64_t TargetAddress) {
+    llvm_unreachable("Re-mapping of section addresses not supported with this "
+                     "EE!");
+  }
+
   /// generateCodeForModule - Run code generation for the specified module and
   /// load it into memory.
   ///

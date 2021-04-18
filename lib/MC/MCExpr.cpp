@@ -834,3 +834,7 @@ MCFragment *MCExpr::findAssociatedFragment() const {
 
   llvm_unreachable("Invalid assembly expression kind!");
 }
+
+const MCSymbol &MCExpr::getSymbol() const {
+  return cast<MCSymbolRefExpr>(this)->getSymbol();
+}

@@ -82,47 +82,69 @@ void DWARFDebugLoc::dump(raw_ostream &OS, const MCRegisterInfo *MRI,
 }
 
 Optional<DWARFDebugLoc::LocationList>
-DWARFDebugLoc::parseOneLocationList(DWARFDataExtractor Data, unsigned *Offset) {
+DWARFDebugLoc::parseOneLocationList(DWARFDataExtractor Data, unsigned *Offset,
+                                    uint64_t CUBaseAddress) {
   LocationList LL;
   LL.Offset = *Offset;
 
   // 2.6.2 Location Lists
-  // A location list entry consists of:
+  //
+  // Each entry in a location list is either a location list entry, a base
+  // address selection entry, or an end of list entry.
+
+  // The applicable base address of a location list entry is determined by the
+  // closest preceding base address selection entry (see below) in the same
+  // location list. If there is no such selection entry, then the applicable
+  // base address defaults to the base address of the compilation unit.
+  uint64_t BaseAddress = CUBaseAddress;
   while (true) {
-    Entry E;
     if (!Data.isValidOffsetForDataOfSize(*Offset, 2 * Data.getAddressSize())) {
       llvm::errs() << "Location list overflows the debug_loc section.\n";
       return None;
     }
 
-    // 1. A beginning address offset. ...
-    E.Begin = Data.getRelocatedAddress(Offset);
-
-    // 2. An ending address offset. ...
-    E.End = Data.getRelocatedAddress(Offset);
-
-    // The end of any given location list is marked by an end of list entry,
-    // which consists of a 0 for the beginning address offset and a 0 for the
-    // ending address offset.
-    if (E.Begin == 0 && E.End == 0)
+    const uint64_t Value0 = Data.getRelocatedAddress(Offset);
+    const uint64_t Value1 = Data.getRelocatedAddress(Offset);
+    if (Value0 == (Data.getAddressSize() == 4 ? -1U : -1ULL)) {
+      // A base address selection entry consists of:
+      // 1. The value of the largest representable address offset (for example,
+      //    0xffffffff when the size of an address is 32 bits).
+      // 2. An address, which defines the appropriate base address for use in
+      //    interpreting the beginning and ending address offsets of subsequent
+      //    entries of the location list.
+      BaseAddress = Value1;
+    } else if (Value0 == 0 && Value1 == 0) {
+      // The end of any given location list is marked by an end of list entry,
+      // which consists of a 0 for the beginning address offset and a 0 for the
+      // ending address offset.
       return LL;
+    } else {
+      // A location list entry consists of:
+      Entry E;
 
-    if (!Data.isValidOffsetForDataOfSize(*Offset, 2)) {
-      llvm::errs() << "Location list overflows the debug_loc section.\n";
-      return None;
-    }
+      // 1. A beginning address offset. ...
+      E.Begin = Value0 + BaseAddress;
 
-    unsigned Bytes = Data.getU16(Offset);
-    if (!Data.isValidOffsetForDataOfSize(*Offset, Bytes)) {
-      llvm::errs() << "Location list overflows the debug_loc section.\n";
-      return None;
+      // 2. An ending address offset. ...
+      E.End = Value1 + BaseAddress;
+
+      if (!Data.isValidOffsetForDataOfSize(*Offset, 2)) {
+        llvm::errs() << "Location list overflows the debug_loc section.\n";
+        return None;
+      }
+
+      unsigned Bytes = Data.getU16(Offset);
+      if (!Data.isValidOffsetForDataOfSize(*Offset, Bytes)) {
+        llvm::errs() << "Location list overflows the debug_loc section.\n";
+        return None;
+      }
+      // A single location description describing the location of the object...
+      StringRef str = Data.getData().substr(*Offset, Bytes);
+      *Offset += Bytes;
+      E.Loc.reserve(str.size());
+      std::copy(str.begin(), str.end(), std::back_inserter(E.Loc));
+      LL.Entries.push_back(std::move(E));
     }
-    // A single location description describing the location of the object...
-    StringRef str = Data.getData().substr(*Offset, Bytes);
-    *Offset += Bytes;
-    E.Loc.reserve(str.size());
-    std::copy(str.begin(), str.end(), std::back_inserter(E.Loc));
-    LL.Entries.push_back(std::move(E));
   }
 }
 

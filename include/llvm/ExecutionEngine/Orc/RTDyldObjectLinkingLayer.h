@@ -62,6 +62,8 @@ protected:
 
     virtual void mapSectionAddress(const void *LocalAddress,
                                    JITTargetAddress TargetAddr) const = 0;
+    virtual void mapSectionAddress(unsigned SectionID,
+                                   JITTargetAddress TargetAddr) const = 0;
 
     JITSymbol getSymbol(StringRef Name, bool ExportedSymbolsOnly) {
       auto SymEntry = SymbolTable.find(Name);
@@ -133,15 +135,15 @@ private:
       std::unique_ptr<RuntimeDyld::LoadedObjectInfo> Info =
           PFC->RTDyld->loadObject(*PFC->Obj.getBinary());
 
+      if (PFC->Parent.NotifyLoaded)
+        PFC->Parent.NotifyLoaded(PFC->K, *PFC->Obj.getBinary(), *Info);
+
       // Copy the symbol table out of the RuntimeDyld instance.
       {
         auto SymTab = PFC->RTDyld->getSymbolTable();
         for (auto &KV : SymTab)
           SymbolTable[KV.first] = KV.second;
       }
-
-      if (PFC->Parent.NotifyLoaded)
-        PFC->Parent.NotifyLoaded(PFC->K, *PFC->Obj.getBinary(), *Info);
 
       PFC->RTDyld->finalizeWithMemoryManagerLocking();
 
@@ -173,6 +175,13 @@ private:
       assert(PFC && "mapSectionAddress called on finalized LinkedObject");
       assert(PFC->RTDyld && "mapSectionAddress called on raw LinkedObject");
       PFC->RTDyld->mapSectionAddress(LocalAddress, TargetAddr);
+    }
+
+    void mapSectionAddress(unsigned SectionID,
+                           JITTargetAddress TargetAddr) const override {
+      assert(PFC && "mapSectionAddress called on finalized LinkedObject");
+      assert(PFC->RTDyld && "mapSectionAddress called on raw LinkedObject");
+      PFC->RTDyld->mapSectionAddress(SectionID, TargetAddr);
     }
 
   private:
@@ -323,6 +332,13 @@ public:
                          JITTargetAddress TargetAddr) {
     assert(LinkedObjects.count(K) && "VModuleKey not associated with object");
     LinkedObjects[K]->mapSectionAddress(LocalAddress, TargetAddr);
+  }
+
+  /// @brief Map section addresses for the objects associated with the handle H.
+  void mapSectionAddress(VModuleKey K, unsigned SectionID,
+                         JITTargetAddress TargetAddr) {
+    assert(LinkedObjects.count(K) && "VModuleKey not associated with object");
+    LinkedObjects[K]->mapSectionAddress(SectionID, TargetAddr);
   }
 
   /// @brief Immediately emit and finalize the object represented by the given

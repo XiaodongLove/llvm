@@ -25,6 +25,7 @@
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/SymbolicFile.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
@@ -48,6 +49,14 @@
 
 using namespace llvm;
 using namespace object;
+
+namespace opts {
+
+cl::opt<bool> CheckOverlappingElements(
+    "check-overlapping-elements", cl::init(true), cl::Hidden,
+    cl::desc("Check overlapping elements while parsing Mach-O object files"));
+
+} // namespace opts
 
 namespace {
 
@@ -240,7 +249,7 @@ struct MachOElement {
 static Error checkOverlappingElement(std::list<MachOElement> &Elements,
                                      uint64_t Offset, uint64_t Size,
                                      const char *Name) {
-  if (Size == 0)
+  if (!opts::CheckOverlappingElements || (Size == 0))
     return Error::success();
 
   for (auto it=Elements.begin() ; it != Elements.end(); ++it) {
@@ -1626,6 +1635,66 @@ MachOObjectFile::MachOObjectFile(MemoryBufferRef Object, bool IsLittleEndian,
   }
   assert(LoadCommands.size() == LoadCommandCount);
 
+  // Precalculate symbol section indices.
+  const size_t N = std::distance(symbols().begin(), symbols().end());
+  SymbolToSection.assign(N, std::numeric_limits<uint64_t>::max());
+  for (SymbolRef S : symbols()) {
+    const auto DRI = S.getRawDataRefImpl();
+    SymbolToSection[getSymbolIndex(DRI)] =
+        getSymbolTableEntryBase(*this, DRI).n_sect;
+  }
+
+  std::vector<SymbolRef> DefinedSymbols;
+  DefinedSymbols.reserve(N);
+  llvm::copy_if(symbols(), std::back_inserter(DefinedSymbols),
+                [this](const SymbolRef S) {
+                  MachO::nlist_base Entry =
+                      getSymbolTableEntryBase(*this, S.getRawDataRefImpl());
+                  if ((Entry.n_type & MachO::N_TYPE) == MachO::N_UNDF)
+                    return false;
+                  Expected<uint64_t> Addr = S.getAddress();
+                  if (!Addr) {
+                    consumeError(Addr.takeError());
+                    return false;
+                  }
+                  return true;
+                });
+  std::sort(DefinedSymbols.begin(), DefinedSymbols.end(),
+            [](const SymbolRef &LHS, const SymbolRef &RHS) {
+              auto L = LHS.getAddress();
+              auto R = RHS.getAddress();
+              if (!L || !R)
+                llvm_unreachable("Defined symbols without address");
+              return *L < *R;
+            });
+  std::vector<SectionRef> Sections(sections().begin(), sections().end());
+  std::sort(Sections.begin(), Sections.end(), [](SectionRef L, SectionRef R) {
+    return L.getAddress() < R.getAddress();
+  });
+  auto Sec = Sections.begin();
+  const auto End = Sections.end();
+  for (SymbolRef S : DefinedSymbols) {
+    const auto DRI = S.getRawDataRefImpl();
+    Expected<uint64_t> Addr = S.getAddress();
+    if (!Addr)
+      llvm_unreachable("Defined symbols without address");
+    Expected<StringRef> Name = getSymbolName(DRI);
+    if (Name && *Name == "_end")
+      continue;
+    else
+      consumeError(Name.takeError());
+
+    if (Sec != End && Sec->getAddress() <= *Addr) {
+      while ((Sec != End) && (Sec->getAddress() + Sec->getSize() <= *Addr))
+        ++Sec;
+      // On Mach-O section indices start from 1.
+      if (Sec != End) {
+        assert((Sec->getAddress() <= *Addr) &&
+               "Section address is greater than symbol address");
+        SymbolToSection[getSymbolIndex(DRI)] = Sec->getIndex() + 1;
+      }
+    }
+  }
   Err = Error::success();
 }
 
@@ -1784,10 +1853,17 @@ MachOObjectFile::getSymbolType(DataRefImpl Symb) const {
     case MachO::N_UNDF :
       return SymbolRef::ST_Unknown;
     case MachO::N_SECT :
+      Expected<StringRef> Name = getSymbolName(Symb);
+      if (Name && *Name == "_end")
+        return SymbolRef::ST_Data;
+      else
+        consumeError(Name.takeError());
+
       Expected<section_iterator> SecOrError = getSymbolSection(Symb);
       if (!SecOrError)
         return SecOrError.takeError();
       section_iterator Sec = *SecOrError;
+      assert((Sec != sections().end()) && "unexpected sections end iterator");
       if (Sec->isData() || Sec->isBSS())
         return SymbolRef::ST_Data;
       return SymbolRef::ST_Function;
@@ -1836,9 +1912,7 @@ uint32_t MachOObjectFile::getSymbolFlags(DataRefImpl DRI) const {
 
 Expected<section_iterator>
 MachOObjectFile::getSymbolSection(DataRefImpl Symb) const {
-  MachO::nlist_base Entry = getSymbolTableEntryBase(*this, Symb);
-  uint8_t index = Entry.n_sect;
-
+  uint64_t index = SymbolToSection[getSymbolIndex(Symb)];
   if (index == 0)
     return section_end();
   DataRefImpl DRI;
@@ -1984,6 +2058,11 @@ bool MachOObjectFile::isSectionStripped(DataRefImpl Sec) const {
   if (is64Bit())
     return getSection64(Sec).offset == 0;
   return getSection(Sec).offset == 0;
+}
+
+bool MachOObjectFile::isSectionReadOnly(DataRefImpl Sec) const {
+  llvm_unreachable("not implemented");
+  return false;
 }
 
 relocation_iterator MachOObjectFile::section_rel_begin(DataRefImpl Sec) const {

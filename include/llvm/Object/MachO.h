@@ -320,6 +320,7 @@ public:
   /// from offset 0 (i.e. the Mach-O header at the beginning of the file).
   bool isSectionStripped(DataRefImpl Sec) const override;
 
+  bool isSectionReadOnly(DataRefImpl Sec) const override;
   relocation_iterator section_rel_begin(DataRefImpl Sec) const override;
   relocation_iterator section_rel_end(DataRefImpl Sec) const override;
 
@@ -331,7 +332,7 @@ public:
 
   relocation_iterator locrel_begin() const;
   relocation_iterator locrel_end() const;
-  
+
   void moveRelocationNext(DataRefImpl &Rel) const override;
   uint64_t getRelocationOffset(DataRefImpl Rel) const override;
   symbol_iterator getRelocationSymbol(DataRefImpl Rel) const override;
@@ -675,6 +676,8 @@ private:
   const char *DyldInfoLoadCmd = nullptr;
   const char *UuidLoadCmd = nullptr;
   bool HasPageZeroSegment = false;
+
+  std::vector<uint64_t> SymbolToSection;
 };
 
 /// DiceRef

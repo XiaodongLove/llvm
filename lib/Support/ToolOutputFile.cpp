@@ -35,8 +35,8 @@ ToolOutputFile::CleanupInstaller::~CleanupInstaller() {
 }
 
 ToolOutputFile::ToolOutputFile(StringRef Filename, std::error_code &EC,
-                               sys::fs::OpenFlags Flags)
-    : Installer(Filename), OS(Filename, EC, Flags) {
+                               sys::fs::OpenFlags Flags, unsigned Mode)
+    : Installer(Filename), OS(Filename, EC, Flags, Mode) {
   // If open fails, no cleanup is needed.
   if (EC)
     Installer.Keep = true;

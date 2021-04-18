@@ -681,6 +681,15 @@ const DWARFDebugLoc *DWARFContext::getDebugLoc() {
   return Loc.get();
 }
 
+Optional<DWARFDebugLoc::LocationList>
+DWARFContext::getOneDebugLocList(uint32_t *Offset, uint64_t CUBaseAddress) {
+  DWARFDebugLoc L;
+  DWARFDataExtractor LocData(*DObj, DObj->getLocSection(), isLittleEndian(),
+                             getCompileUnitAtIndex(0)->getAddressByteSize());
+
+  return L.parseOneLocationList(LocData, Offset, CUBaseAddress);
+}
+
 const DWARFDebugLocDWO *DWARFContext::getDebugLocDWO() {
   if (LocDWO)
     return LocDWO.get();
@@ -726,7 +735,8 @@ const DWARFDebugFrame *DWARFContext::getEHFrame() {
 
   DWARFDataExtractor debugFrameData(DObj->getEHFrameSection(), isLittleEndian(),
                                     DObj->getAddressSize());
-  DebugFrame.reset(new DWARFDebugFrame(true /* IsEH */));
+  DebugFrame.reset(
+      new DWARFDebugFrame(true /* IsEH */, DObj->getEHFrameAddress()));
   DebugFrame->parse(debugFrameData);
   return DebugFrame.get();
 }
@@ -807,6 +817,19 @@ DWARFContext::getLineTableForUnit(DWARFUnit *U) {
   DWARFDataExtractor lineData(*DObj, U->getLineSection(), isLittleEndian(),
                               U->getAddressByteSize());
   return Line->getOrParseLineTable(lineData, stmtOffset, *this, U);
+}
+
+uint32_t DWARFContext::getAttrFieldOffsetForUnit(DWARFUnit *U,
+                                                 dwarf::Attribute Attr) const {
+  const auto UnitDIE = U->getUnitDIE();
+  if (!UnitDIE)
+    return 0;
+
+  uint32_t Offset = 0;
+  if (!UnitDIE.find(Attr, &Offset))
+    return 0;
+
+  return Offset;
 }
 
 void DWARFContext::parseCompileUnits() {
@@ -1244,6 +1267,9 @@ class DWARFObjInMemory final : public DWARFObject {
 
   SmallVector<SmallString<32>, 4> UncompressedSections;
 
+  uint64_t EHFrameAddress{0};
+  bool UsesRelocs{true};
+
   StringRef *mapSectionToMember(StringRef Name) {
     if (DWARFSection *Sec = mapNameToDWARFSection(Name))
       return &Sec->Data;
@@ -1300,10 +1326,11 @@ public:
     }
   }
   DWARFObjInMemory(const object::ObjectFile &Obj, const LoadedObjectInfo *L,
-                   function_ref<ErrorPolicy(Error)> HandleError)
+                   function_ref<ErrorPolicy(Error)> HandleError,
+                   bool UsesRelocs = true)
       : IsLittleEndian(Obj.isLittleEndian()),
         AddressSize(Obj.getBytesInAddress()), FileName(Obj.getFileName()),
-        Obj(&Obj) {
+        Obj(&Obj), UsesRelocs(UsesRelocs) {
 
     StringMap<unsigned> SectionAmountMap;
     for (const SectionRef &Section : Obj.sections()) {
@@ -1350,6 +1377,8 @@ public:
         if (Name == "debug_ranges") {
           // FIXME: Use the other dwo range section when we emit it.
           RangeDWOSection.Data = Data;
+        } else if (Name == "eh_frame") {
+          EHFrameAddress = Section.getAddress();
         }
       } else if (Name == "debug_types") {
         // Find debug_types data by section rather than name as there are
@@ -1402,7 +1431,7 @@ public:
           continue;
       }
 
-      if (Section.relocation_begin() == Section.relocation_end())
+      if (Section.relocation_begin() == Section.relocation_end() || !UsesRelocs)
         continue;
 
       // Symbol to [address, section index] cache mapping.
@@ -1445,6 +1474,8 @@ public:
 
   Optional<RelocAddrEntry> find(const DWARFSection &S,
                                 uint64_t Pos) const override {
+    if (!UsesRelocs)
+      return None;
     auto &Sec = static_cast<const DWARFSectionMap &>(S);
     RelocAddrMap::const_iterator AI = Sec.Relocs.find(Pos);
     if (AI == Sec.Relocs.end())
@@ -1499,6 +1530,7 @@ public:
   StringRef getARangeSection() const override { return ARangeSection; }
   StringRef getDebugFrameSection() const override { return DebugFrameSection; }
   StringRef getEHFrameSection() const override { return EHFrameSection; }
+  uint64_t getEHFrameAddress() const override { return EHFrameAddress; }
   const DWARFSection &getLineSection() const override { return LineSection; }
   StringRef getStringSection() const override { return StringSection; }
   const DWARFSection &getRangeSection() const override { return RangeSection; }
@@ -1544,8 +1576,9 @@ public:
 std::unique_ptr<DWARFContext>
 DWARFContext::create(const object::ObjectFile &Obj, const LoadedObjectInfo *L,
                      function_ref<ErrorPolicy(Error)> HandleError,
-                     std::string DWPName) {
-  auto DObj = llvm::make_unique<DWARFObjInMemory>(Obj, L, HandleError);
+                     std::string DWPName, bool UsesRelocs) {
+  auto DObj =
+      llvm::make_unique<DWARFObjInMemory>(Obj, L, HandleError, UsesRelocs);
   return llvm::make_unique<DWARFContext>(std::move(DObj), std::move(DWPName));
 }
 

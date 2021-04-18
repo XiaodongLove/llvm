@@ -273,9 +273,9 @@ bool MCObjectStreamer::mayHaveInstructions(MCSection &Sec) const {
 
 void MCObjectStreamer::EmitInstruction(const MCInst &Inst,
                                        const MCSubtargetInfo &STI, bool) {
-  getAssembler().getBackend().handleCodePaddingInstructionBegin(Inst);
+  getAssembler().getBackend().alignBranchesBegin(*this, Inst);
   EmitInstructionImpl(Inst, STI);
-  getAssembler().getBackend().handleCodePaddingInstructionEnd(Inst);
+  getAssembler().getBackend().alignBranchesEnd(*this, Inst);
 }
 
 void MCObjectStreamer::EmitInstructionImpl(const MCInst &Inst,
@@ -377,12 +377,17 @@ static const MCExpr *buildSymbolDiff(MCObjectStreamer &OS, const MCSymbol *A,
 static void emitDwarfSetLineAddr(MCObjectStreamer &OS,
                                  MCDwarfLineTableParams Params,
                                  int64_t LineDelta, const MCSymbol *Label,
+                                 uint64_t Address,
                                  int PointerSize) {
   // emit the sequence to set the address
   OS.EmitIntValue(dwarf::DW_LNS_extended_op, 1);
   OS.EmitULEB128IntValue(PointerSize + 1);
   OS.EmitIntValue(dwarf::DW_LNE_set_address, 1);
-  OS.EmitSymbolValue(Label, PointerSize);
+  if (Label) {
+    OS.EmitSymbolValue(Label, PointerSize);
+  } else {
+    OS.EmitIntValue(Address, PointerSize);
+  }
 
   // emit the sequence for the LineDelta (from 1) and a zero address delta.
   MCDwarfLineAddr::Emit(&OS, Params, LineDelta, 0);
@@ -394,7 +399,7 @@ void MCObjectStreamer::EmitDwarfAdvanceLineAddr(int64_t LineDelta,
                                                 unsigned PointerSize) {
   if (!LastLabel) {
     emitDwarfSetLineAddr(*this, Assembler->getDWARFLinetableParams(), LineDelta,
-                         Label, PointerSize);
+                         Label, 0, PointerSize);
     return;
   }
   const MCExpr *AddrDelta = buildSymbolDiff(*this, Label, LastLabel);
@@ -405,6 +410,19 @@ void MCObjectStreamer::EmitDwarfAdvanceLineAddr(int64_t LineDelta,
     return;
   }
   insert(new MCDwarfLineAddrFragment(LineDelta, *AddrDelta));
+}
+
+void MCObjectStreamer::EmitDwarfAdvanceLineAddr(int64_t LineDelta,
+                                                uint64_t Address,
+                                                uint64_t AddressDelta,
+                                                unsigned PointerSize) {
+  if (Address != -1ULL) {
+    emitDwarfSetLineAddr(*this, Assembler->getDWARFLinetableParams(), LineDelta,
+                         nullptr, Address, PointerSize);
+    return;
+  }
+  MCDwarfLineAddr::Emit(this, Assembler->getDWARFLinetableParams(), LineDelta,
+                        AddressDelta);
 }
 
 void MCObjectStreamer::EmitDwarfAdvanceFrameAddr(const MCSymbol *LastLabel,
@@ -492,6 +510,13 @@ void MCObjectStreamer::EmitCodeAlignment(unsigned ByteAlignment,
                                          unsigned MaxBytesToEmit) {
   EmitValueToAlignment(ByteAlignment, 0, 1, MaxBytesToEmit);
   cast<MCAlignFragment>(getCurrentFragment())->setEmitNops(true);
+}
+
+void MCObjectStreamer::EmitNeverAlignCodeAtEnd(unsigned ByteAlignment,
+                                               int64_t Value,
+                                               unsigned ValueSize) {
+  insert(new MCNeverAlignFragment(ByteAlignment, 0, 1));
+  cast<MCNeverAlignFragment>(getCurrentFragment())->setEmitNops(true);
 }
 
 void MCObjectStreamer::emitValueToOffset(const MCExpr *Offset,
